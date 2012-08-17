@@ -2,14 +2,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-//#define VERBOSE
-
 // Hardcoding is bad, what if we have more than that ?
+struct sin_file {
+  unsigned int data_offset;
+  unsigned int cert_offset;
+  int block_desc_cnt;
+  int has_partinfo;
+  unsigned int part_id;
+  unsigned int part_attribs;
+  unsigned int part_start;
+  unsigned int part_len;
+  size_t raw_size;
+  size_t target_size;
+} _sin;
+
 struct sin_block_descriptor {
-  int target_offset;
-  int block_count;
-  int unknown1;
-  int unknown2;
+  size_t target_offset;
+  size_t length;
   int sin_block_payload_size;
   unsigned char payload[20];
 } block_desc[4096];
@@ -44,16 +53,111 @@ void dump(unsigned char *buffer, int size)
   printf("\n");
 }
 
+void read_sin_header(FILE *fd)
+{
+  int magic, dummy;
+  _sin.has_partinfo = 0;
+  _sin.block_desc_cnt = 0;
+  _sin.raw_size = 0;
+
+  // 0x0200 0000
+  fread(&magic, 1, sizeof(int), fd);
+  // header payload (short)
+  _sin.data_offset = read_short(fd);
+  // 0x0900 ??
+  fread(&dummy, 1, 2, fd);
+  // 0x0000 0000
+  fread(&dummy, 1, 4, fd);
+  // 0x00
+  fread(&dummy, 1, 1, fd);
+  // header offset
+  _sin.cert_offset = read_short(fd);
+  printf("File data offset   = 0x%04X\n", _sin.data_offset);
+  printf("Certificate offset = 0x%04X\n", _sin.cert_offset);
+}
+
+void read_block_descriptors(FILE *fd)
+{
+  // dump sin block
+  fseek(fd, 15, SEEK_SET);
+  while(ftell(fd) < _sin.cert_offset) {
+    unsigned char hash_header[9];
+    unsigned char hash[32];
+    //    int index, sz, unk1, unk2, bkcnt;
+    fread(hash_header, 1, 9, fd);
+
+    block_desc[_sin.block_desc_cnt].target_offset = (((int) hash_header[0]) << 24) + (((int) hash_header[1]) << 16) + (((int) hash_header[2]) << 8) + (int) hash_header[3];
+    block_desc[_sin.block_desc_cnt].length = (((int) hash_header[4]) << 24) + (((int) hash_header[5]) << 16) + (((int) hash_header[6]) << 8) + (int) hash_header[7];
+    block_desc[_sin.block_desc_cnt].sin_block_payload_size = hash_header[8];
+
+    printf("blk[%04d]@%04lX: offset 0x%08lX, length=0x%08lX  (sz=%02lX)\n", _sin.block_desc_cnt, (unsigned long)ftell(fd), 
+	   (unsigned long)block_desc[_sin.block_desc_cnt].target_offset,
+	   (unsigned long)block_desc[_sin.block_desc_cnt].length,
+	   (unsigned long)block_desc[_sin.block_desc_cnt].sin_block_payload_size);
+
+
+    // loader has special handling, reset offset to avoid huge file
+    if((_sin.block_desc_cnt == 0) && (block_desc[0].target_offset == 0x42300000)){
+      printf("Loader detected, using fixup 0x42300000->0\n");
+      block_desc[0].target_offset = 0;
+    }
+
+    // check if we have partition_info
+    if((_sin.block_desc_cnt == 1) &&  (block_desc[1].target_offset == 0)) {
+      printf("sin file has partition_info\n");
+      _sin.has_partinfo = 1;
+    }
+
+    // Too lazy to fill this one, won't be used
+    //    block_desc[block_desc_cnt].payload[20];
+    if(_sin.raw_size < block_desc[_sin.block_desc_cnt].target_offset + block_desc[_sin.block_desc_cnt].length) {
+      _sin.raw_size = block_desc[_sin.block_desc_cnt].target_offset + block_desc[_sin.block_desc_cnt].length;
+    }
+
+
+    // skip hash, don't care for now
+    //    fseek(fd, sz, SEEK_CUR);
+    fread(hash, 1, block_desc[_sin.block_desc_cnt].sin_block_payload_size, fd);
+    _sin.block_desc_cnt++;
+  }
+
+  printf("-> %d descriptors, raw size=%lu\n", _sin.block_desc_cnt, (unsigned long)_sin.raw_size);
+}
+
+void read_partition_info(FILE *fd)
+{
+  if(_sin.has_partinfo) {
+    // read part_info
+    fseek(fd, _sin.data_offset,  SEEK_SET);
+
+    // part bytes are little endian ?
+    fread(&_sin.part_id, 4, 1, fd);
+    fread(&_sin.part_attribs, 4, 1, fd);
+    fread(&_sin.part_start, 4, 1, fd);
+    fread(&_sin.part_len, 4, 1, fd);
+
+    printf("--- part_info ---\n");
+    printf("part_id      = %08X\n", _sin.part_id);
+    printf("part_attribs = %08X\n", _sin.part_attribs);
+    printf("part_start   = %08X\n", _sin.part_start);
+    printf("part_len     = %08X\n", _sin.part_len);
+    printf("\n");
+    if(_sin.target_size == 0) {
+      _sin.target_size = _sin.part_len * 512;
+      printf("-> target size is %lu\n", (unsigned long) _sin.target_size);
+    }
+  }
+}
+
 main(int argc, char **argv)
 {
-  unsigned int data_offset=0, file_header_offset=0, file_header_size=0, magic=0, dummy;
+  unsigned int data_offset=0, file_header_offset=0, file_header_size=0, magic=0, dummy, has_partinfo=0;
   FILE *fd, *fo;
-  char *header;
-  size_t target_size=0, raw_size=0;
-  int i, j;
+  unsigned int i;
 
   printf("\nsin2raw v0.2 by LeTama\n\n");
 
+  _sin.target_size = 0;
   if(argc == 4)  {
     int mult=1;
     // target size defined
@@ -72,145 +176,64 @@ main(int argc, char **argv)
     if(mult > 1) {
       argv[3][strlen(argv[3]) - 1] = 0;
     }
-    target_size = mult * atol(argv[3]);
-#ifdef VERBOSE
-    printf("Target size=%ld\n", target_size);
-#endif
+    _sin.target_size = mult * atol(argv[3]);
+    printf("Target size=%lu\n", (unsigned long)_sin.target_size);
   } else if(argc != 3) {
     printf("usage: sin2raw <input sin> <output> [target size[K/M/G]]\n\n");
     return -1;
   }
 
-  fd = fopen(argv[1], "r");
-
-  // 0x0200 0000
-  fread(&magic, 1, sizeof(int), fd);
-  // header payload (short)
-  data_offset = read_short(fd);
-  // 0x0900 ??
-  fread(&dummy, 1, 2, fd);
-  // 0x0000 0000
-  fread(&dummy, 1, 4, fd);
-  // 0x00 
-  fread(&dummy, 1, 1, fd);
-  // header offset
-  file_header_offset = read_short(fd);
-
-  printf("File data offset   = 0x%04X\n", data_offset);
-  printf("File header offset = 0x%04X\n", file_header_offset);
-
-
-  // read part_info
-  fseek(fd, data_offset,  SEEK_SET);
-
-  int part_id = read_int(fd);
-  int part_attribs = read_int(fd);
-  int part_start = read_int(fd);
-  int part_len = read_int(fd);
-  printf("--- part_info ---\n");
-  printf("part_id      = %08X\n", part_id);
-  printf("part_attribs = %08X\n", part_attribs);
-  printf("part_start   = %08X\n", part_start);
-  printf("part_len     = %08X\n", part_len);
-  printf("\n");
-
-
-
-
-#if 0
-  // Dump header
-  fseek(fd, file_header_offset, SEEK_SET);
-  file_header_size = data_offset - file_header_offset;
-  printf("File header size = %d\n", file_header_size);
-  header = (char *)malloc(file_header_size);
-  fread(header, 1, file_header_size, fd);
-  fo = fopen(argv[2], "w");
-  fwrite(header, 1, file_header_size, fo);
-  fclose(fo);
-  free(header);
-#endif
-
-  // dump sin block
-  fseek(fd, 15, SEEK_SET);
-  
-  while(ftell(fd) < file_header_offset) {
-    unsigned char hash_header[9];
-    unsigned char hash[32];
-    //    int index, sz, unk1, unk2, bkcnt;
-    fread(hash_header, 1, 9, fd);
-
-#ifdef VERBOSE
-    printf("---- block_desc ------\n");
-    dump(hash_header, 9);
-#endif
-
-    block_desc[block_desc_cnt].target_offset = (((int) hash_header[0]) << 24) + (((int) hash_header[1]) << 16) + (((int) hash_header[2]) << 8) + (int) hash_header[3];
-    block_desc[block_desc_cnt].block_count = (((int) hash_header[5]) << 8) + (int)hash_header[6];
-    block_desc[block_desc_cnt].unknown1 = (int) hash_header[4];
-    block_desc[block_desc_cnt].unknown2 = (int) hash_header[7];
-    block_desc[block_desc_cnt].sin_block_payload_size = hash_header[8];
-
-    printf("blk[%04d]@%04lX: offset 0x%08X, blocks=%04X  (unk1=%02X unk2=%02X sz=%02X)\n", block_desc_cnt, ftell(fd), 
-	   block_desc[block_desc_cnt].target_offset,
-	   block_desc[block_desc_cnt].block_count,
-	   block_desc[block_desc_cnt].unknown1,
-	   block_desc[block_desc_cnt].unknown2,
-	   block_desc[block_desc_cnt].sin_block_payload_size);
-
-    // Too lazy to fill this one, won't be used
-    //    block_desc[block_desc_cnt].payload[20];
-
-    if(raw_size < block_desc[block_desc_cnt].target_offset + block_desc[block_desc_cnt].block_count * 256) {
-      raw_size = block_desc[block_desc_cnt].target_offset + block_desc[block_desc_cnt].block_count * 256;
-    }
-
-
-    // skip hash, don't care for now
-    //    fseek(fd, sz, SEEK_CUR);
-    fread(hash, 1, block_desc[block_desc_cnt].sin_block_payload_size, fd);
-#ifdef VERBOSE
-    printf("--- hash:\n");
-    dump(hash, block_desc[block_desc_cnt].sin_block_payload_size);
-    printf("\n");
-#endif
-    block_desc_cnt++;
+  fd = fopen(argv[1], "rb");
+  if(fd == NULL) {
+    fprintf(stderr, "Error: unable to open %s for reading\n", argv[1]);
+    return -2;
   }
 
-  printf("-> %d descriptors, raw size=%ld\n", block_desc_cnt, raw_size);
 
-  if(target_size == 0) {
-    target_size = raw_size;
-  }
+  read_sin_header(fd);
+  read_block_descriptors(fd);
+  read_partition_info(fd);
 
   // Now prepare output
   // First init output file to proper size
-  printf("\nInitializing output ... ");
+  printf("\nInitializing output (size=%lu)... ", (unsigned long)_sin.target_size);
   fflush(stdout);
-  memset(empty_block, 0xff, 1024);
-  fo = fopen(argv[2], "w");
-  // We should figure out target_size somehow
-  fwrite(empty_block, 1024, target_size / 1024, fo);
-  fwrite(empty_block, target_size % 1024, 1, fo);
+  memset(empty_block, 0xff, 4096);
+  fo = fopen(argv[2], "wb");
+  if(fo == NULL) {
+    fprintf(stderr, "Error: unable to open %s for writing\n", argv[2]);
+    return -3;
+  }
+
+  for(i = 0 ; i < _sin.target_size / 4096 ; i++) {
+    fwrite(empty_block, 4096, 1, fo);
+  }
+  fwrite(empty_block, _sin.target_size % 4096, 1, fo);
   printf(" done!\n");
 
-  // we are now on blocks
+  // Then write blocks
   printf("Writing output ");
-  for(i = 0 ; i < block_desc_cnt ; i++) {
-    // move to right location on target
+  fseek(fd, _sin.data_offset, SEEK_SET);
+  for(i = 0 ; i < _sin.block_desc_cnt ; i++) {
+    unsigned char *block;
+
     printf(".");
     fflush(stdout);
 
-#ifdef VERBOSE
-    printf("Writing block at %08X\n", block_desc[i].target_offset);
-#endif
-    fseek(fo, block_desc[i].target_offset, SEEK_SET);
-    for(j = 0; j < block_desc[i].block_count ; j++) {
-      fread(empty_block, 1, 256, fd);
-      fwrite(empty_block, 1, 256, fo);
+    // move to right location on target
+    block = malloc( block_desc[i].length );
+    if(!block) {
+      fprintf(stderr, "Error, malloc(%lu) failed\n", (unsigned long)block_desc[i].length);
+      return -4;
     }
+    fseek(fo, block_desc[i].target_offset, SEEK_SET);
+    fread(block, block_desc[i].length, 1, fd);
+    fwrite(block, block_desc[i].length, 1, fo);
+    free(block);
   }
 
   fclose(fo);
   fclose(fd);
-  printf("\n\nFile has been successfully extracted.\n\n", argv[2]);
+  printf("\n\nFile %s has been successfully extracted.\n\n", argv[2]);
+  return 0;
 }
