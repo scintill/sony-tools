@@ -31,15 +31,18 @@ clear_and_select:
 	ldr	r4, =0x7ffef000
 	mov	r5, #0
 	str	r5, [r4]
-	ldr	r5, [r4, #4]
-	cmp	r5, #1
+	ldr	r6, [r4, #4]
+	str	r5, [r4, #4]
+	cmp	r6, #1
 	beq 	boot_k1
-	b	boot_k2
+	cmp	r6, #2
+	beq	boot_k2
 
 clear_tag_bootkb:
 	ldr	r4, =0x7ffef000
 	mov	r5, #0
 	str	r5, [r4]
+	str	r5, [r4, #4]
 	b 	boot_kb
 
 

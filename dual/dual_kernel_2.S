@@ -16,10 +16,10 @@ cpio2_size:
 
 	.align 4, 0
 kernel2_begin:
-	.incbin "stock_zimage"
+	.incbin "custom_zimage"
 kernel2_end:
 	.align 4, 0
 cpio2_begin:
-	.incbin "stock_cpio.gz"
+	.incbin "custom_cpio.gz"
 cpio2_end:
 	.align 4, 0
