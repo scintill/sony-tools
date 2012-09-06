@@ -5,6 +5,8 @@
 	.global cpio1_size
 /* first kernel, bootloader kernel */
 
+kernel1_magic:
+	.ascii "KRN1"
 kernel1_start:
 	.word	kernel1_begin
 kernel1_size:
@@ -14,12 +16,12 @@ cpio1_start:
 cpio1_size:
 	.word 	cpio1_end - cpio1_begin
 
-	.align 4, 0
+	.balign 4, 0
 kernel1_begin:
 	.incbin "stock_zimage"
 kernel1_end:
-	.align 4, 0
+	.balign 4, 0
 cpio1_begin:
 	.incbin "stock_cpio.gz"
 cpio1_end:
-	.align 4, 0
+	.balign 4, 0
