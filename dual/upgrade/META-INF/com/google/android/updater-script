@@ -1,0 +1,8 @@
+assert(getprop("ro.product.device") == "LT26i" || getprop("ro.build.product") == "LT26i" || 
+       getprop("ro.product.device") == "LT26a" || getprop("ro.build.product") == "LT26a" || 
+       getprop("ro.product.device") == "nozomi" || getprop("ro.build.product") == "nozomi");
+package_extract_file("bl_zimage", "/tmp/zImage");
+package_extract_file("bl_cpio.gz", "/tmp/initramfs.cpio.gz");
+assert(run_program("/sbin/kf", "0",  "/tmp/zImage", "/tmp/initramfs.cpio.gz") == 0);
+show_progress(0.100000, 0);
+unmount("/system");
