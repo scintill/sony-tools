@@ -89,7 +89,7 @@ boot_kernel:
 	@ copy cpio first as it will be overwritten by kernel
 	@ r7 <- end of cpio area
 	add	r7, r6, r7
-	ldr	r8, =0x41300000
+	ldr	r8, =0x41500000
 copy_cpio_loop:
 	ldmia	r6!, {r9}
 	stmia	r8!, {r9}

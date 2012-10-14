@@ -1,5 +1,7 @@
+all: dual.elf kf
+
 dual.elf: dual.bin
-	mkelf.py -o dual.elf ./dual.bin@0x40208000 dummy.bin.gz@0x41300000,ramdisk sec2-0x00020000.bin@0x20000,rpm
+	mkelf.py -o dual.elf ./dual.bin@0x40208000 dummy.bin.gz@0x41500000,ramdisk sec2-0x00020000.bin@0x20000,rpm
 
 dual.bin: dual
 	~/arm-2011.03/bin/arm-none-eabi-objcopy -O binary dual dual.bin
@@ -22,3 +24,5 @@ dual_kernel_2.o: dual_kernel_2.S stock_zimage stock_cpio.gz
 dual_loader.o: dual_loader.S
 	~/arm-2011.03/bin/arm-none-eabi-as dual_loader.S  -o dual_loader.o 
 
+kf: kernel_flasher.c
+	~/archos/gits/gen9-root/buildroot/build_arm/staging_dir/usr/bin/arm-linux-uclibcgnueabi-gcc --static kernel_flasher.c -o kf
