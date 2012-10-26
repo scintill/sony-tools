@@ -1,0 +1,75 @@
+#!/sbin/sh
+
+prepare_loops() 
+{
+    umount /cache
+    mkdir /sd
+    mount -t vfat /dev/block/mmcblk0p15 /sd
+    if [ ! -f /sd/custom_system.ext4 ] 
+    then
+	/sbin/fbmenu -c select -T "System loopback is missing" -t "Select desired size" -t "384 MB" -t "512 MB" -t "768 MB"
+	case $? in 
+	    0) dd if=/dev/zero of=/sd/custom_system.ext4 bs=1024 count=384000;;
+	    1) dd if=/dev/zero of=/sd/custom_system.ext4 bs=1024 count=512000;;	    
+	    2) dd if=/dev/zero of=/sd/custom_system.ext4 bs=1024 count=768000;;
+        esac		
+    fi
+    if [ ! -f /sd/custom_data.ext4 ] 
+    then
+	/sbin/fbmenu -c select -T "Data loopback is missing" -t "Select desired size" -t "512 MB" -t "1024 MB" -t "1536 M" -t "2048 MB"
+	case $? in 
+	    0) dd if=/dev/zero of=/sd/custom_data.ext4 bs=1024 count=512000;;
+	    1) dd if=/dev/zero of=/sd/custom_data.ext4 bs=1024 count=1024000;;
+	    2) dd if=/dev/zero of=/sd/custom_data.ext4 bs=1024 count=1536000;;
+	    3) dd if=/dev/zero of=/sd/custom_data.ext4 bs=1024 count=2048000;;
+        esac		
+     fi
+    if [ ! -f /sd/custom_cache.ext4 ] 
+    then
+	/sbin/fbmenu -c select -T "Cache loopback is missing" -t "Select desired size" -t "256 MB" -t "128 MB" -t "64 M"
+	case $? in 
+	    0) dd if=/dev/zero of=/sd/custom_cache.ext4 bs=1024 count=256000;;
+	    1) dd if=/dev/zero of=/sd/custom_cache.ext4 bs=1024 count=128000;;
+	    2) dd if=/dev/zero of=/sd/custom_cache.ext4 bs=1024 count=64000;;
+	esac 
+    fi
+    losetup /dev/block/loop2 /sd/custom_system.ext4
+    losetup /dev/block/loop3 /sd/custom_data.ext4
+    losetup /dev/block/loop4 /sd/custom_cache.ext4
+    mount -t ext4 /dev/block/loop4 /cache
+}
+
+# check if we are offline charging
+# if we do, start silently native firmware
+if cat /proc/cmdline | grep "startup=0x20" 
+then 
+    echo  1 > /proc/bootsel
+    reboot -p
+fi
+
+# trigger amber LED
+echo '255' > /sys/class/leds/blue/brightness
+echo '255' > /sys/class/leds/red/brightness
+echo '0' > /sys/class/leds/green/brightness
+# trigger button-backlight
+echo '200' > /sys/class/leds/button-backlight/brightness
+
+/sbin/fbmenu -c select -T "Boot Manager v0.5 by LeTama" -t "Select boot option"  -t "Native kernel" -t "Loop kernel" -t "TWRP recovery for native" -t "TWRP recovery for loop" -t "TWRP recovery for alternate" -t "Reboot" -d 0 -o 5
+case $? in 
+0) echo 1 > /proc/bootsel
+	reboot;;
+1) echo 2 > /proc/bootsel
+	reboot;;
+2) echo 0 > /proc/bootsel
+	cp /res/ui_native.xml /res/ui.xml
+	cp /etc/recovery_native.fstab /etc/recovery.fstab;;
+3) echo 0 > /proc/bootsel
+	prepare_loops
+	cp /res/ui_loop.xml /res/ui.xml
+        cp /etc/recovery_loopback.fstab /etc/recovery.fstab;;
+4) echo 0 > /proc/bootsel
+	cp /res/ui_native.xml /res/ui.xml
+        cp /etc/recovery_alternate.fstab /etc/recovery.fstab;;
+5) echo 0 > /proc/bootsel
+	reboot;;
+esac
