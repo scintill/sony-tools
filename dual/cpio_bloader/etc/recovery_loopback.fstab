@@ -1,6 +1,6 @@
 # mount point	fstype		device			[device2]   fstype2
 
-/boot		emmc		/dev/block/mmcblk0p3
+/boot		emmc		/dev/block/mmcblk0p3_hidden	    /dev/block/mmcblk0p3
 /system		ext4		/dev/block/loop2
 /cache		ext4		/dev/block/loop4
 /data		ext4		/dev/block/loop3

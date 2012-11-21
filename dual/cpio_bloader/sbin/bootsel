@@ -37,12 +37,12 @@ prepare_loops()
     losetup /dev/block/loop3 /sd/custom_data.ext4
     losetup /dev/block/loop4 /sd/custom_cache.ext4
     mount -t ext4 /dev/block/loop4 /cache
-}
 
-clear
-echo "-------------------------------------------------------"
-echo "Boot selector by LeTama, press volume down to show menu"
-echo "-------------------------------------------------------"
+    # hide native partition to protect them
+    mv /dev/block/mmcblk0p12 /dev/block/mmcblk0p12_hidden
+    mv /dev/block/mmcblk0p13 /dev/block/mmcblk0p13_hidden
+    mv /dev/block/mmcblk0p14 /dev/block/mmcblk0p14_hidden
+}
 
 # check if we are offline charging
 # if we do, start silently native firmware
@@ -53,26 +53,62 @@ then
 fi
 
 # trigger amber LED
-echo '255' > /sys/class/leds/blue/brightness
-echo '255' > /sys/class/leds/red/brightness
+echo '40' > /sys/class/leds/blue/brightness
+echo '40' > /sys/class/leds/red/brightness
 echo '0' > /sys/class/leds/green/brightness
 # trigger button-backlight
 echo '200' > /sys/class/leds/button-backlight/brightness
 
-/sbin/fbmenu -c select -T "Boot Manager v0.5 by LeTama" -t "Select boot option"  -t "Native kernel" -t "Loop kernel" -t "CWM recovery for native" -t "CWM recovery for loop" -t "CMW recovery for alternate" -t "Reboot" -d 0 -o 5
+# mount cache to check last saved value
+lastsel="0"
+mount -t ext4 /dev/block/mmcblk0p13 /cache
+if [ -f /cache/bootmanager/lastsel ]
+then
+    lastsel=`cat /cache/bootmanager/lastsel`
+fi
+
+if [ ! -f /cache/bootmanager ]
+then
+    mkdir /cache/bootmanager
+fi
+
+# hide kernel partition to recoveries to avoid accidental flahs
+mv /dev/block/mmcblk0p3 /dev/block/mmcblk0p3_hidden
+
+/sbin/fbmenu -c select -T "Boot Manager v0.6 by LeTama" -t "Select boot option"  -t "Native kernel" -t "Loop kernel" -t "CWM recovery for native" -t "CWM recovery for loop" -t "CMW recovery for alternate" -t "Reboot" -d $lastsel -o 5
 case $? in 
 0) echo 1 > /proc/bootsel
+        if [ $lastsel == "1" ]
+        then
+            echo "0" > /cache/bootmanager/lastsel
+        fi
 	reboot;;
 1) echo 2 > /proc/bootsel
+        if [ $lastsel == "0" ]
+        then
+            echo "1" > /cache/bootmanager/lastsel
+        fi
 	reboot;;
 2) echo 0 > /proc/bootsel
+	umount /cache
+        echo '0' > /sys/class/leds/blue/brightness
+        echo '0' > /sys/class/leds/red/brightness
+        echo '20' > /sys/class/leds/green/brightness
 	cp /res/images/icon_clockwork_stock.png /res/images/icon_clockwork.png
 	cp /etc/recovery_native.fstab /etc/recovery.fstab;;
 3) echo 0 > /proc/bootsel
+	umount /cache
+        echo '0' > /sys/class/leds/blue/brightness
+        echo '20' > /sys/class/leds/red/brightness
+        echo '0' > /sys/class/leds/green/brightness
 	prepare_loops
 	cp /res/images/icon_clockwork_custom.png /res/images/icon_clockwork.png
         cp /etc/recovery_loopback.fstab /etc/recovery.fstab;;
 4) echo 0 > /proc/bootsel
+	umount /cache
+        echo '20' > /sys/class/leds/blue/brightness
+        echo '0' > /sys/class/leds/red/brightness
+        echo '0' > /sys/class/leds/green/brightness
 	cp /res/images/icon_clockwork_custom.png /res/images/icon_clockwork.png
         cp /etc/recovery_alternate.fstab /etc/recovery.fstab;;
 5) echo 0 > /proc/bootsel

@@ -19,7 +19,7 @@
 @	must preserve kernel loading regs, r0=0, r1=mach_tye r2=atag addr
 	
 start_loader:
-	ldr	r4, =0x7ffef000
+	ldr	r4, =0x7ffdf000
 	ldr	r5, [r4]
 	@ TAMA tag 
 	ldr 	r4, =0x54414d41
@@ -28,7 +28,7 @@ start_loader:
 	b	clear_tag_bootkb
 
 clear_and_select:
-	ldr	r4, =0x7ffef000
+	ldr	r4, =0x7ffdf000
 	mov	r5, #0
 	str	r5, [r4]
 	ldr	r6, [r4, #4]
@@ -39,7 +39,7 @@ clear_and_select:
 	beq	boot_k2
 
 clear_tag_bootkb:
-	ldr	r4, =0x7ffef000
+	ldr	r4, =0x7ffdf000
 	mov	r5, #0
 	str	r5, [r4]
 	str	r5, [r4, #4]
