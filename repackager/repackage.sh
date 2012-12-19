@@ -7,11 +7,15 @@ rm bm_loop_$2.zip
 unzip -q $1 -d zip_out
 cp -a zip_out/META-INF zip_out/META-INF-SRC
 mv zip_out/META-INF zip_out/META-INF-NATIVE
-if [ -f zip_out/boot.img ] ; then kernel_img="boot.img"; fi
-if [ -f zip_out/zImage ] ; then kernel_img="zImage"; fi
+
 # process boot logo!
 cd zip_out
+if [ -f boot.img ] ; then kernel_img="boot.img"; fi
+if [ -f zImage ] ; then kernel_img="zImage"; fi
+if [ -f *.elf ]; then kernel_img=`ls *.elf`; fi
+
 if [ $kernel_img ] ; then 
+    echo "kernel '$kernel_img' found"
     /home/tama/sony/tools/sksplit $kernel_img
     mv $kernel_img original_kernel.img
     mv sec0-* zimage
@@ -21,6 +25,8 @@ if [ $kernel_img ] ; then
     mkdir cpio
     cd cpio
     cat ../initramfs.src.gz | gzip -d | cpio -i --make-directories
+    chown -R root:root .
+
     is_doomlord="0"
     if [ -x init_ics ]; then
 	echo "Doomlord type recovery"
@@ -31,15 +37,18 @@ if [ $kernel_img ] ; then
 	cd sbin
 	ln -s ../init ueventd
 	cd ..
+	cp -a cpio cpio_native
     fi
-    if [ -x sbin/ramdisk.cpio ]; then
+    if [ -f sbin/ramdisk.cpio ]; then
 	echo "New FXP recovery"
 	cd ..
 	mkdir cpio_native
 	cd cpio_native
 	cat ../cpio/sbin/ramdisk.cpio | cpio -i --make-directories
+	chown -R root:root .	
 	cd ..
     else
+	echo "Old FXP recovery"
 	cd ..
 	cp -a cpio cpio_native
     fi
@@ -193,6 +202,13 @@ if [ $kernel_img ] ; then
     cd ..
 fi
 
+# aroma nova kernel
+if [ -f customize/kernel/kernel.elf ]; then
+    sksplit customize/kernel/kernel.elf
+    mv sec0-* zimage_custo
+    rm sec1-* sec2-*
+fi
+
 
 cp -a META-INF-NATIVE META-INF-LOOP
 cp -a META-INF-NATIVE META-INF-ALT
@@ -204,7 +220,8 @@ cp -a META-INF-NATIVE META-INF-ALT
 # aokp/cm style kernels:
 sed 's:package_extract_file("boot.img", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
 package_extract_file("initramfs.native.gz",  "/tmp/initramfs.cpio.gz");\
-run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
+run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
 mv new_script META-INF-NATIVE/com/google/android/updater-script
 
 # KA style kernels:
@@ -215,11 +232,29 @@ mv new_script META-INF-NATIVE/com/google/android/updater-script
 sed 's:delete("/tmp/zImage"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-NATIVE/com/google/android/updater-script > new_script
 mv new_script META-INF-NATIVE/com/google/android/updater-script
 
+# Nova kernel
+sed 's:run_program("/sbin/dd", "if=/dev/zero", "of=/dev/block/mmcblk0p3");::g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+sed 's:package_extract_file("kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
+package_extract_file("initramfs.native.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+
+# Nova rom / Aroma kernels:
+sed 's:package_extract_file("customize/kernel/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
+package_extract_file("initramfs.native.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+
+
 # loop
 # aokp/cm style kernels:
 sed 's:package_extract_file("boot.img", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
 package_extract_file("initramfs.loop.gz",  "/tmp/initramfs.cpio.gz");\
-run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");:g' META-INF-LOOP/com/google/android/updater-script > new_script
+run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-LOOP/com/google/android/updater-script > new_script
 mv new_script META-INF-LOOP/com/google/android/updater-script
 
 # KA style kernels:
@@ -230,6 +265,21 @@ mv new_script META-INF-LOOP/com/google/android/updater-script
 sed 's:delete("/tmp/zImage"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-LOOP/com/google/android/updater-script > new_script
 mv new_script META-INF-LOOP/com/google/android/updater-script
 
+# Nova kernel
+sed 's:run_program("/sbin/dd", "if=/dev/zero", "of=/dev/block/mmcblk0p3");::g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
+sed 's:package_extract_file("kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
+package_extract_file("initramfs.loop.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
+
+# Nova rom / Aroma kernels:
+sed 's:package_extract_file("customize/kernel/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
+package_extract_file("initramfs.loop.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
 
 # alt
 # aokp/cm style kernels:
@@ -245,6 +295,14 @@ sed 's:write_raw_image("/tmp/zImage", "/dev/block/mmcblk0p3"),:run_program("/sbi
 mv new_script META-INF-ALT/com/google/android/updater-script
 sed 's:delete("/tmp/zImage"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-ALT/com/google/android/updater-script > new_script
 mv new_script META-INF-ALT/com/google/android/updater-script
+
+# Nova rom / Aroma kernels:
+sed 's:package_extract_file("customize/kernel/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
+package_extract_file("initramfs.alt.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-ALT/com/google/android/updater-script > new_script
+mv new_script META-INF-ALT/com/google/android/updater-script
+
 
 # PARTITIONS
 # loop partitions
@@ -263,19 +321,26 @@ mv new_script META-INF-ALT/com/google/android/updater-script
 sed 's:/dev/block/mmcblk0p14:/dev/block/mmcblk0p18:g' META-INF-ALT/com/google/android/updater-script > new_script
 mv new_script META-INF-ALT/com/google/android/updater-script
 
+# replace Aroma with my build 
+if [ -f META-INF-NATIVE/com/google/android/aroma-config ]; then
+    echo "Replacing Aroma with my build"
+    cp /home/tama/aroma-installer-src/edelweis/bin/update-binary  META-INF-NATIVE/com/google/android/
+    cp /home/tama/aroma-installer-src/edelweis/bin/update-binary  META-INF-LOOP/com/google/android/
+    cp /home/tama/aroma-installer-src/edelweis/bin/update-binary  META-INF-ALT/com/google/android/
+fi
 
 # Zips
 customize=""
 if [ -d customize ] ; then customize="customize" ; fi
 
 mv META-INF-NATIVE META-INF
-zip -q -r ../bm_native_$2.zip META-INF system $customize zimage initramfs.native.gz
+zip -q -r ../bm_native_$2.zip META-INF system $customize zimage initramfs.native.gz zimage_custo
 mv META-INF META-INF-NATIVE
 
 mv META-INF-LOOP META-INF
-zip -q -r ../bm_loop_$2.zip META-INF system $customize zimage initramfs.loop.gz
+zip -q -r ../bm_loop_$2.zip META-INF system $customize zimage initramfs.loop.gz zimage_custo
 mv META-INF META-INF-LOOP
 
 mv META-INF-ALT META-INF
-zip -q -r ../bm_alt_$2.zip META-INF system $customize zimage initramfs.alt.gz
+zip -q -r ../bm_alt_$2.zip META-INF system $customize zimage initramfs.alt.gz zimage_custo
 mv META-INF META-INF-ALT
