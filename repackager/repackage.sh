@@ -16,7 +16,7 @@ if [ -f *.elf ]; then kernel_img=`ls *.elf`; fi
 
 if [ $kernel_img ] ; then 
     echo "kernel '$kernel_img' found"
-    /home/tama/sony/tools/sksplit $kernel_img
+    ../prebuilt/sksplit $kernel_img
     mv $kernel_img original_kernel.img
     mv sec0-* zimage
     mv sec1-* initramfs.src.gz
@@ -120,7 +120,7 @@ if [ $kernel_img ] ; then
 
     # now loop
     cd cpio_loop
-    cp /home/tama/cm10/out/target/product/nozomi/system/bin/losetup-static sbin/
+    cp  ../../prebuilt/losetup-static sbin/
     chmod 755 sbin/losetup-static
     # loop patches, first identify cpio type
     if [ -f fstab.semc ]; then
@@ -324,9 +324,9 @@ mv new_script META-INF-ALT/com/google/android/updater-script
 # replace Aroma with my build 
 if [ -f META-INF-NATIVE/com/google/android/aroma-config ]; then
     echo "Replacing Aroma with my build"
-    cp /home/tama/aroma-installer-src/edelweis/bin/update-binary  META-INF-NATIVE/com/google/android/
-    cp /home/tama/aroma-installer-src/edelweis/bin/update-binary  META-INF-LOOP/com/google/android/
-    cp /home/tama/aroma-installer-src/edelweis/bin/update-binary  META-INF-ALT/com/google/android/
+    cp ../prebuilt/update-binary  META-INF-NATIVE/com/google/android/
+    cp ../prebuilt/update-binary  META-INF-LOOP/com/google/android/
+    cp ../prebuilt/update-binary  META-INF-ALT/com/google/android/
 fi
 
 # Zips
