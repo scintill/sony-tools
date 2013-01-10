@@ -207,7 +207,16 @@ if [ -f customize/kernel/kernel.elf ]; then
     sksplit customize/kernel/kernel.elf
     mv sec0-* zimage_custo
     rm sec1-* sec2-*
+    rm customize/kernel/kernel.elf
 fi
+
+if [ -f novaxperia/kernel/nova/kernel.elf ]; then
+    sksplit novaxperia/kernel/nova/kernel.elf
+    mv sec0-* zimage_custo
+    rm sec1-* sec2-*
+    rm novaxperia/kernel/nova/kernel.elf
+fi
+
 
 
 cp -a META-INF-NATIVE META-INF-LOOP
@@ -218,7 +227,7 @@ cp -a META-INF-NATIVE META-INF-ALT
 # KERNELS
 # native
 # aokp/cm style kernels:
-sed 's:package_extract_file("boot.img", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
+sed 's:package_extract_file("'$kernel_img'", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
 package_extract_file("initramfs.native.gz",  "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
@@ -241,8 +250,15 @@ run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
 mv new_script META-INF-NATIVE/com/google/android/updater-script
 
+
 # Nova rom / Aroma kernels:
 sed 's:package_extract_file("customize/kernel/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
+package_extract_file("initramfs.native.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+
+sed 's:package_extract_file("novaxperia/kernel/nova/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
 package_extract_file("initramfs.native.gz",  "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/sync");:g' META-INF-NATIVE/com/google/android/updater-script > new_script
@@ -251,7 +267,7 @@ mv new_script META-INF-NATIVE/com/google/android/updater-script
 
 # loop
 # aokp/cm style kernels:
-sed 's:package_extract_file("boot.img", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
+sed 's:package_extract_file("'$kernel_img'", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
 package_extract_file("initramfs.loop.gz",  "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/sync");:g' META-INF-LOOP/com/google/android/updater-script > new_script
@@ -281,9 +297,16 @@ run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/sync");:g' META-INF-LOOP/com/google/android/updater-script > new_script
 mv new_script META-INF-LOOP/com/google/android/updater-script
 
+sed 's:package_extract_file("novaxperia/kernel/nova/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
+package_extract_file("initramfs.loop.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
+
+
 # alt
 # aokp/cm style kernels:
-sed 's:package_extract_file("boot.img", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
+sed 's:package_extract_file("'$kernel_img'", "/dev/block/mmcblk0p3");:package_extract_file("zimage", "/tmp/zimage");\
 package_extract_file("initramfs.alt.gz",  "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");:g' META-INF-ALT/com/google/android/updater-script > new_script
 mv new_script META-INF-ALT/com/google/android/updater-script
@@ -303,6 +326,11 @@ run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
 run_program("/sbin/sync");:g' META-INF-ALT/com/google/android/updater-script > new_script
 mv new_script META-INF-ALT/com/google/android/updater-script
 
+sed 's:package_extract_file("novaxperia/kernel/nova/kernel.elf", "/dev/block/mmcblk0p3");:package_extract_file("zimage_custo", "/tmp/zimage");\
+package_extract_file("initramfs.alt.gz",  "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz");\
+run_program("/sbin/sync");:g' META-INF-ALT/com/google/android/updater-script > new_script
+mv new_script META-INF-ALT/com/google/android/updater-script
 
 # PARTITIONS
 # loop partitions
@@ -334,13 +362,13 @@ customize=""
 if [ -d customize ] ; then customize="customize" ; fi
 
 mv META-INF-NATIVE META-INF
-zip -q -r ../bm_native_$2.zip META-INF system $customize zimage initramfs.native.gz zimage_custo
+zip -q -r ../bm_native_$2.zip META-INF system $customize zimage initramfs.native.gz zimage_custo novaxperia
 mv META-INF META-INF-NATIVE
 
 mv META-INF-LOOP META-INF
-zip -q -r ../bm_loop_$2.zip META-INF system $customize zimage initramfs.loop.gz zimage_custo
+zip -q -r ../bm_loop_$2.zip META-INF system $customize zimage initramfs.loop.gz zimage_custo novaxperia
 mv META-INF META-INF-LOOP
 
 mv META-INF-ALT META-INF
-zip -q -r ../bm_alt_$2.zip META-INF system $customize zimage initramfs.alt.gz zimage_custo
+zip -q -r ../bm_alt_$2.zip META-INF system $customize zimage initramfs.alt.gz zimage_custo novaxperia
 mv META-INF META-INF-ALT
