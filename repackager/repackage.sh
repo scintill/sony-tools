@@ -241,6 +241,15 @@ mv new_script META-INF-NATIVE/com/google/android/updater-script
 sed 's:delete("/tmp/zImage"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-NATIVE/com/google/android/updater-script > new_script
 mv new_script META-INF-NATIVE/com/google/android/updater-script
 
+# KA style v2 kernels:
+sed 's:package_extract_file("kernel.elf", "/tmp/kernel.elf"),:package_extract_file("zimage", "/tmp/zimage"),package_extract_file("initramfs.native.gz", "/tmp/initramfs.cpio.gz"),:g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+sed 's:write_raw_image("/tmp/kernel.elf", "/dev/block/mmcblk0p3"),:run_program("/sbin/kf", "1", "/tmp/zimage", "/tmp/initramfs.cpio.gz"),:g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+sed 's:delete("/tmp/kernel.elf"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-NATIVE/com/google/android/updater-script > new_script
+mv new_script META-INF-NATIVE/com/google/android/updater-script
+
+
 # Nova kernel
 sed 's:run_program("/sbin/dd", "if=/dev/zero", "of=/dev/block/mmcblk0p3");::g' META-INF-NATIVE/com/google/android/updater-script > new_script
 mv new_script META-INF-NATIVE/com/google/android/updater-script
@@ -280,6 +289,15 @@ sed 's:write_raw_image("/tmp/zImage", "/dev/block/mmcblk0p3"),:run_program("/sbi
 mv new_script META-INF-LOOP/com/google/android/updater-script
 sed 's:delete("/tmp/zImage"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-LOOP/com/google/android/updater-script > new_script
 mv new_script META-INF-LOOP/com/google/android/updater-script
+
+# KA style v2 kernels:
+sed 's:package_extract_file("kernel.elf", "/tmp/kernel.elf"),:package_extract_file("zimage", "/tmp/zimage"),package_extract_file("initramfs.loop.gz", "/tmp/initramfs.cpio.gz"),:g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
+sed 's:write_raw_image("/tmp/kernel.elf", "/dev/block/mmcblk0p3"),:run_program("/sbin/kf", "2", "/tmp/zimage", "/tmp/initramfs.cpio.gz"),:g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
+sed 's:delete("/tmp/kernel.elf"):delete("/tmp/zimage"),delete("/tmp/initramfs.cpio.gz"):g' META-INF-LOOP/com/google/android/updater-script > new_script
+mv new_script META-INF-LOOP/com/google/android/updater-script
+
 
 # Nova kernel
 sed 's:run_program("/sbin/dd", "if=/dev/zero", "of=/dev/block/mmcblk0p3");::g' META-INF-LOOP/com/google/android/updater-script > new_script
